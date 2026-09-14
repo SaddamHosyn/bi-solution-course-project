@@ -56,6 +56,100 @@ All layers persist inside a single **DuckDB warehouse** at `warehouse/warehouse.
 
 ---
 
+## ⭐ Warehouse Data Model
+
+The pipeline follows a **Medallion architecture** where Bronze dimension tables are denormalized into Silver at join time, and Gold aggregates are built on top.
+
+![Åland Grocery BI — Physical Warehouse Schema](./star_schema.png)
+
+<details>
+<summary>📋 Logical Star Schema — Mermaid source (renders on GitHub)</summary>
+
+```mermaid
+erDiagram
+
+    DIM_STORE {
+        string  store_id    PK
+        string  store_name
+        string  municipality
+    }
+
+    DIM_PRODUCT {
+        string  product_id   PK
+        string  product_name
+        string  category
+        float   unit_price
+    }
+
+    FACT_GROCERY_SALES {
+        string  store_id         FK
+        string  product_id       FK
+        date    transaction_date
+        string  municipality
+        int     year
+        int     month
+        int     quantity
+        float   total_amount
+    }
+
+    DIM_POPULATION {
+        string  municipality_name   PK
+        int     year                PK
+        int     population
+    }
+
+    DIM_TOURISM {
+        string  municipality_name
+        int     year
+        int     month
+        string  accommodation_type
+        string  origin_country
+        int     visitor_count
+        float   tourism_revenue
+    }
+
+    DIM_STORE      ||--o{ FACT_GROCERY_SALES : "1 store → N sales"
+    DIM_PRODUCT    ||--o{ FACT_GROCERY_SALES : "1 product → N sales"
+    DIM_POPULATION |o--o{ FACT_GROCERY_SALES : "0..1 pop record → N sales (LEFT JOIN)"
+    DIM_POPULATION ||--o{ DIM_TOURISM        : "1 municipality → N tourism rows"
+```
+
+</details>
+
+> **⚠️ Physical vs Logical model:**
+> In the actual warehouse, `silver_grocery_sales` is a **denormalized wide table** — `bronze_stores` and `bronze_products` are consumed at Silver join time and their columns (store_name, municipality, product_name, category) are embedded directly into Silver. There is **no separate DIM_STORE or DIM_PRODUCT table at the Silver layer**. The Mermaid diagram above is the logical/conceptual model. The image shows the physical Bronze → Silver → Gold flow.
+
+### 📐 Cardinalities Explained
+
+| Relationship | Cardinality | Reason |
+|---|---|---|
+| `DIM_STORE` → `FACT_GROCERY_SALES` | **1 : N** (one-to-many) | One store appears in many transaction rows |
+| `DIM_PRODUCT` → `FACT_GROCERY_SALES` | **1 : N** (one-to-many) | One product appears in many transaction rows |
+| `DIM_POPULATION` → `FACT_GROCERY_SALES` | **0..1 : N** (zero-or-one to many) | `LEFT JOIN` — a municipality may have no population record for that year; sales rows are still kept with NULL per-capita |
+| `DIM_POPULATION` → `DIM_TOURISM` | **1 : N** (one-to-many) | One municipality-year has many tourism records (by month, accommodation type, origin) |
+| Silver rows → Gold tables | **N : 1** (many-to-one) | Many raw rows collapse into one aggregate row per `GROUP BY` key |
+
+### 📐 Key Design Decisions
+
+| Decision | Reason |
+|---|---|
+| Silver is **denormalized** (not a pure star) | Simplifies Gold queries — no re-joining at aggregate time |
+| `LEFT JOIN` to population (`0..1 : N`) | Preserves all sales rows even if API returned no population for that year |
+| `NULLIF(population, 0)` in `revenue_per_capita` | Guards against division-by-zero when population is absent |
+| Composite PK on `DIM_POPULATION (municipality_name, year)` | Population changes year-to-year — each pair is a unique record |
+| `DIM_TOURISM` linked at `(year, month)`, not per transaction | Tourism is a monthly aggregate enrichment, not a row-level sales attribute |
+
+### 🥇 Gold Aggregate Tables
+
+| Gold Table | Input | Grain | Cardinality from Silver |
+|---|---|---|---|
+| `gold_sales_by_municipality` | silver_grocery_sales + silver_population_total | 1 row per (year, municipality) | N : 1 |
+| `gold_monthly_sales` | silver_grocery_sales | 1 row per (year, month, municipality, category) | N : 1 |
+| `gold_category_performance` | silver_grocery_sales | 1 row per (year, category) | N : 1 |
+| `gold_tourism_sales` | silver_grocery_sales + silver_tourism | 1 row per (year, month) | N + N : 1 |
+
+---
+
 ## 📁 Project Structure
 
 ```
