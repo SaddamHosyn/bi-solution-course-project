@@ -48,7 +48,9 @@ All layers persist inside a single **DuckDB warehouse** at `warehouse/warehouse.
 
 The pipeline follows a **Medallion architecture** where Bronze dimension tables are denormalized into Silver at join time, and Gold aggregates are built on top.
 
-![Åland Grocery BI — Physical Warehouse Schema](./assets/star_schema.png)
+![Entity Relationship Diagram](./assets/erd.png)
+
+![All Details Schema](./assets/alldetails.png)
 
 <details>
 <summary>📋 Logical Star Schema — Mermaid source (renders on GitHub)</summary>
