@@ -5,7 +5,9 @@ import glob
 from pathlib import Path
 import numpy as np
 import requests
+from io import StringIO
 
+# path configuration section.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 WAREHOUSE_DIR = PROJECT_ROOT / "warehouse"
@@ -14,7 +16,6 @@ DB_PATH = WAREHOUSE_DIR / "warehouse.duckdb"
 # CONFIG: Paths to raw data
 TOURISM_CSV = DATA_DIR / "tourism" / "tourism_data.csv"
 GROCERY_DIR = DATA_DIR / "grocery"
-POPULATION_JSON = DATA_DIR / "population" / "BE001.json"
 
 
 def get_db_connection():
@@ -89,17 +90,16 @@ def extract_population_from_api(con):
     url = "https://pxweb.asub.ax/PXWeb/sq/12095902-f8bb-4e6c-8eb2-348ac9b4e767"
 
     try:
-        # Fetch CSV data from API
+        # Fetch CSV data from API        
         response = requests.get(url)
         response.raise_for_status()
 
         # Read CSV, skipping the title row (row 0)
-        from io import StringIO
-
+        
         df_raw = pd.read_csv(StringIO(response.text), skiprows=1)
 
         print(f"   Raw data shape: {df_raw.shape}")
-        print(f"   Columns: {df_raw.columns.tolist()[:5]}...")  # Show first 5 columns
+        print(f"   Columns: {df_raw.columns.tolist()[:5]}")  # Show first 5 columns
 
         # Save raw "wide" data to Bronze layer
         con.execute(

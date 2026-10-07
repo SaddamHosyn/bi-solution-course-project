@@ -38,19 +38,7 @@ The finished dashboard delivers interactive BI across three views: KPI overview,
 
 ## 🏗️ Architecture: Medallion ELT Pattern
 
-```
-Raw Data Sources
-      │
-      ▼
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌──────────────────┐
-│  🥉 BRONZE  │ ───▶ │  🥈 SILVER  │ ───▶ │  🥇 GOLD   │ ───▶ │  📊 STREAMLIT    │
-│   Ingest    │      │  Clean &    │      │  Business   │      │   Dashboard      │
-│  Raw Files  │      │  Transform  │      │  Aggregates │      │  app/dashboard   │
-└─────────────┘      └─────────────┘      └─────────────┘      └──────────────────┘
-        │                   │                    │
-   JSON / CSV           DuckDB SQL           Gold Tables
-   ÅSUB API           dbt Models           per-capita KPIs
-```
+![Medallion Architecture](./assets/arc.png)
 
 All layers persist inside a single **DuckDB warehouse** at `warehouse/warehouse.duckdb`.
 
@@ -60,7 +48,7 @@ All layers persist inside a single **DuckDB warehouse** at `warehouse/warehouse.
 
 The pipeline follows a **Medallion architecture** where Bronze dimension tables are denormalized into Silver at join time, and Gold aggregates are built on top.
 
-![Åland Grocery BI — Physical Warehouse Schema](./star_schema.png)
+![Åland Grocery BI — Physical Warehouse Schema](./assets/star_schema.png)
 
 <details>
 <summary>📋 Logical Star Schema — Mermaid source (renders on GitHub)</summary>
